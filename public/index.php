@@ -1,5 +1,11 @@
 <?php
+use Alberto\Container;
 
 require(__DIR__ . '/../bootstrap/start.php');
 
-view('index', compact('access'));
+function homeController()
+{
+    $access = Container::getInstance()->access();
+    view('index', compact('access'));
+}
+homeController();
