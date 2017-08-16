@@ -1,59 +1,67 @@
 <?php
 
-namespace Alberto;
+ namespace Alberto;
 
-class Container
-{
-    protected static $container;
-    protected $shared = array();
+use Closure;
+use InvalidArgumentException;
+use ReflectionClass;
 
-    public static function getInstance()
-    {
-        if (static::$container == null) {
-            static::$container = new Container;
-        }
-        return static::$container;
-    }
+ class Container
+ {
+     protected $shared = [];
+     protected $bindings = [];
 
-    public static function setContainer(Container $container)
-    {
-        static::$container = $container;
-    }
+     public function bind($name, $resolver)
+     {
+         $this->bindings[$name] = [
+            'resolver' => $resolver
+         ];
+     }
 
-    public static function clearContiner()
-    {
-        static::$container = null;
-    }
+     public function instance($name, $object)
+     {
+         $this->shared[$name] = $object;
+     }
 
-    public function session()
-    {
-        if (isset($this->shared['session'])) {
-            return $this->shared['session'];
-        }
-        $data = array(
-            'user_data' => array(
-                'name' => 'Alberto',
-                'role' => 'teacher'
-            )
-        );
+     public function make($name)
+     {
+         if (isset($this->shared[$name])) {
+             return $this->shared[$name];
+         }
 
-        $driver = new SessionArrayDriver($data);
-        return $this->shared['session'] = new SessionManager($driver);
-    }
+         $resolver = $this->bindings[$name]['resolver'];
 
-    public function auth()
-    {
-        if (isset($this->shared['auth'])) {
-            return $this->shared['auth'];
-        }
-        return $this->shared['auth'] = new Authenticator($this->session());
-    }
+         if ($resolver instanceof Closure ) {
+             $object = $resolver($this);
+         } else{
+             $object = $this->build($resolver);
+         }
 
-    public function access()
-    {
-        if (isset($this->shared['access'])) {
-            return $this->shared['access'];
-        }
-        return $this->shared['access'] = new AccessHandler($this->auth());
-    }
-}
+         return $object;
+     }
+
+     public function build($name)
+     {
+         $reflection = new ReflectionClass($name);
+         if(!$reflection->isInstantiable()){
+             throw new InvalidArgumentException("$name is not instantiable");
+         }
+
+         $constructor = $reflection->getConstructor();
+         if (is_null($constructor)) {
+             return new $name;
+         }
+
+         $constructorParameters = $constructor->getParameters();
+
+         $arguments = array();
+
+         foreach ($constructorParameters as $constructorParameter) {
+             $parameterClassName = $constructorParameter->getClass()->getName();
+             $arguments[] = $this->build($parameterClassName);
+         }
+         //new Foo($bar)
+         return $reflection->newInstanceArgs($arguments);
+     }
+
+ }
