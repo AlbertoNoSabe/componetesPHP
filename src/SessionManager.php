@@ -1,6 +1,7 @@
 <?php
 
 namespace Alberto;
+
 use Alberto\SessionFileDriver;
 use Alberto\SessionDriverInterface;
 
